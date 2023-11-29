@@ -58,6 +58,7 @@
   <div class="scanner" style="display:none;">
     <select id="cameraSelect" onchange="switchCamera();"></select>
     <button id="closeButton" onclick="stopLiveScan()">Close</button>
+    <canvas id="hiddenCanvas" style="display: none;"></canvas>
     <video class="camera fullscreen" muted autoplay="autoplay" playsinline="playsinline" webkit-playsinline></video>
   </div>
 </div>
@@ -66,17 +67,26 @@
   let imgElement = document.getElementById('imageSrc');
   let inputElement = document.getElementById('fileInput');
   let localStream;
+  let interval;
+  let decoding = false;
 
   inputElement.addEventListener('change', (e) => {
     imgElement.src = URL.createObjectURL(e.target.files[0]);
   }, false);
 
+  document.getElementsByClassName("camera")[0].addEventListener('loadeddata',() => {
+    startDecodingLoop();
+  }, false);
+
   function decodeFromImage(){
     let mat = cv.imread(imgElement);
     let result = detector.detectAndDecode(mat);
-    console.log(result);
     mat.delete();
-    displayBarcodeResults([result]);
+    if (result) {
+      displayBarcodeResults([result]);
+    }else{
+      alert("No barcodes found.");
+    }
   }
 
   function displayBarcodeResults(results){
@@ -109,8 +119,50 @@
   }
 
   function stopLiveScan(){
+    stopDecodingLoop();
     document.getElementsByClassName("scanner")[0].style.display = "none";
     stop();
+  }
+
+  function startDecodingLoop(){
+    stopDecodingLoop();
+    interval = setInterval(captureAndDecode,200);
+  }
+
+  function captureAndDecode(){
+    if (decoding) {
+      return;
+    }
+    if (!cv) {
+      return;
+    }
+    decoding = true;
+    capture();
+    let mat = cv.imread(document.getElementById("hiddenCanvas"));
+    let result = detector.detectAndDecode(mat);
+    console.log(result);
+    mat.delete();
+    if (result != "") {
+      stopLiveScan();
+      displayBarcodeResults([result]);
+    }
+    decoding = false;
+  }
+
+  function capture(){
+    let video = document.getElementsByClassName("camera")[0];
+    let canvas = document.getElementById("hiddenCanvas");
+    let w = video.videoWidth;
+    let h = video.videoHeight;
+    canvas.width  = w;
+    canvas.height = h;
+    let ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+  }
+
+  function stopDecodingLoop(){
+    clearInterval(interval);
+    decoding = false;
   }
   
   function loadDevicesAndPlay(){
