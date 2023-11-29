@@ -9,6 +9,29 @@
     max-height: 300px;
     overflow: auto;
   }
+
+  .fullscreen {
+    width:100%;
+    height:100%;
+    position:absolute;
+    left:0;
+    top:0;
+    background: white;
+  }
+
+  #cameraSelect {
+    z-index:999;
+    top:0;
+    position:absolute;
+  }
+
+  #closeButton {
+    z-index:999;
+    position:absolute;
+    right:0;
+    top:0;
+  }
+
 </style>
 </head>
 <body>
@@ -25,17 +48,24 @@
   Select an image:<input type="file" id="fileInput" name="file" />
   <div>
     <button onclick="decodeFromImage()">Decode from the image</button>
+    <button onclick="startLiveScan()">Live scan</button>
   </div>
   <div id="imageContainer">
     <img id="imageSrc" alt=""/>
   </div>
   <div id="resultContainer">
   </div>
+  <div class="scanner" style="display:none;">
+    <select id="cameraSelect" onchange="switchCamera();"></select>
+    <button id="closeButton" onclick="stopLiveScan()">Close</button>
+    <video class="camera fullscreen" muted autoplay="autoplay" playsinline="playsinline" webkit-playsinline></video>
+  </div>
 </div>
 <script type="text/javascript">
   let detector;
   let imgElement = document.getElementById('imageSrc');
   let inputElement = document.getElementById('fileInput');
+  let localStream;
 
   inputElement.addEventListener('change', (e) => {
     imgElement.src = URL.createObjectURL(e.target.files[0]);
@@ -70,6 +100,91 @@
       }else{
         detector = new cv.QRCodeDetector();
       }
+    }
+  }
+
+  function startLiveScan(){
+    document.getElementsByClassName("scanner")[0].style.display = "";
+    loadDevicesAndPlay();
+  }
+
+  function stopLiveScan(){
+    document.getElementsByClassName("scanner")[0].style.display = "none";
+    stop();
+  }
+  
+  function loadDevicesAndPlay(){
+    var constraints = {video: true, audio: false};
+    navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+      localStream = stream;
+      var cameraselect = document.getElementById("cameraSelect");
+      cameraselect.innerHTML="";
+      navigator.mediaDevices.enumerateDevices().then(function(devices) {
+        var count = 0;
+        var cameraDevices = [];
+        var defaultIndex = 0;
+        for (var i=0;i<devices.length;i++){
+            var device = devices[i];
+            if (device.kind == 'videoinput'){
+                cameraDevices.push(device);
+                var label = device.label || `Camera ${count++}`;
+                cameraselect.add(new Option(label,device.deviceId));
+                if (label.toLowerCase().indexOf("back") != -1) { //select the back camera as the default
+                  defaultIndex = cameraDevices.length - 1;
+                }
+            }
+        }
+
+        if (cameraDevices.length>0) {
+          cameraselect.selectedIndex = defaultIndex;
+          play(cameraDevices[defaultIndex].deviceId);
+        }else{
+          alert("No camera detected.");
+        }
+      });
+    });
+  }
+
+  function switchCamera(){
+    var cameraselect = document.getElementById("cameraSelect");
+    let selectedOption = cameraselect.selectedOptions[0];
+    play(selectedOption.value);
+  }
+
+  function play(deviceId) {
+    stop(); // close before play
+    var constraints = {};
+
+    if (!!deviceId){
+      constraints = {
+        video: {deviceId: deviceId},
+        audio: false
+      }
+    }else{
+      constraints = {
+        video: true,
+        audio: false
+      }
+    }
+
+    navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
+      localStream = stream;
+      var cameraVideo = document.getElementsByClassName("camera")[0];
+      // Attach local stream to video element
+      cameraVideo.srcObject = stream;
+    }).catch(function(err) {
+      console.error('getUserMediaError', err, err.stack);
+      alert(err.message);
+    });
+  }
+
+  function stop(){
+    try{
+      if (localStream){
+        localStream.getTracks().forEach(track => track.stop());
+      }
+    } catch (e){
+      alert(e.message);
     }
   }
 
