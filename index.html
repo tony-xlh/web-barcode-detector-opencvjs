@@ -33,16 +33,25 @@
   }
 
 </style>
+<script type="text/javascript" src="https://unpkg.com/dynamsoft-javascript-barcode@9.6.20/dist/dbr.js"></script>
 </head>
 <body>
 <h2>Web Barcode Detector with OpenCV.js</h2>
 <p id="status">OpenCV.js is loading...</p>
+<p id="statusDBR">Dynamsoft Barcode Reader is loading...</p>
 <div>
   <div>
     Barcode Formats:
     <select id="barcodeSelect" onchange="switchDetector()">
       <option>1D (EAN13, UPCA)</option>
       <option>2D (QR Code)</option>
+    </select>
+  </div>
+  <div>
+    Engine:
+    <select id="engineSelect">
+      <option>OpenCV</option>
+      <option>Dynamsoft Barcode Reader</option>
     </select>
   </div>
   Select an image:<input type="file" id="fileInput" name="file" />
@@ -64,12 +73,13 @@
 </div>
 <script type="text/javascript">
   let detector;
+  let dbr;
   let imgElement = document.getElementById('imageSrc');
   let inputElement = document.getElementById('fileInput');
   let localStream;
   let interval;
   let decoding = false;
-
+  initDBR();
   inputElement.addEventListener('change', (e) => {
     imgElement.src = URL.createObjectURL(e.target.files[0]);
   }, false);
@@ -78,15 +88,46 @@
     startDecodingLoop();
   }, false);
 
-  function decodeFromImage(){
+  async function initDBR(){
+    Dynamsoft.DBR.BarcodeReader.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMjAwMDAxLTE2NDk4Mjk3OTI2MzUiLCJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSIsInNlc3Npb25QYXNzd29yZCI6IndTcGR6Vm05WDJrcEQ5YUoifQ==";
+    dbr = await Dynamsoft.DBR.BarcodeReader.createInstance();
+    document.getElementById("statusDBR").innerText = "Dynamsoft Barcode Reader is ready.";
+  }
+
+  async function decodeFromImage(){
+    let results = [];
+    if (document.getElementById("engineSelect").selectedIndex === 0) {
+      results = decodeWithOpenCV(imgElement);
+    }else{
+      results = await decodeWithDBR(imgElement);
+    }
+    if (results.length>0) {
+      displayBarcodeResults(results);
+    }else{
+      alert("No barcodes found.");
+    }
+  }
+
+  function decodeWithOpenCV(imageSource) {
+    let results = [];
     let mat = cv.imread(imgElement);
     let result = detector.detectAndDecode(mat);
     mat.delete();
     if (result) {
-      displayBarcodeResults([result]);
-    }else{
-      alert("No barcodes found.");
+      results.push(result);
     }
+    return results;
+  }
+
+  async function decodeWithDBR(imageSource) {
+    let textResults = await dbr.decode(imageSource);
+    console.log(textResults);
+    let results = [];
+    for (let index = 0; index < textResults.length; index++) {
+      const tr = textResults[index];
+      results.push(tr.barcodeText);
+    }
+    return results;
   }
 
   function displayBarcodeResults(results){
@@ -129,7 +170,7 @@
     interval = setInterval(captureAndDecode,200);
   }
 
-  function captureAndDecode(){
+  async function captureAndDecode(){
     if (decoding) {
       return;
     }
@@ -138,13 +179,17 @@
     }
     decoding = true;
     capture();
-    let mat = cv.imread(document.getElementById("hiddenCanvas"));
-    let result = detector.detectAndDecode(mat);
-    console.log(result);
-    mat.delete();
-    if (result != "") {
+    let cvs = document.getElementById("hiddenCanvas");
+    let results = [];
+    if (document.getElementById("engineSelect").selectedIndex === 0) {
+      results = decodeWithOpenCV(cvs);
+    }else{
+      results = await decodeWithDBR(cvs);
+    }
+    console.log(results);
+    if (results.length>0) {
       stopLiveScan();
-      displayBarcodeResults([result]);
+      displayBarcodeResults(results);
     }
     decoding = false;
   }
