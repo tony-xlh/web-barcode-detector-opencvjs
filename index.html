@@ -179,18 +179,22 @@
       return;
     }
     decoding = true;
-    capture();
-    let cvs = document.getElementById("hiddenCanvas");
-    let results = [];
-    if (document.getElementById("engineSelect").selectedIndex === 0) {
-      results = decodeWithOpenCV(cvs);
-    }else{
-      results = await decodeWithDBR(cvs);
-    }
-    console.log(results);
-    if (results.length>0) {
-      stopLiveScan();
-      displayBarcodeResults(results);
+    try {
+      capture();
+      let cvs = document.getElementById("hiddenCanvas");
+      let results = [];
+      if (document.getElementById("engineSelect").selectedIndex === 0) {
+        results = decodeWithOpenCV(cvs);
+      }else{
+        results = await decodeWithDBR(cvs);
+      }
+      console.log(results);
+      if (results.length>0) {
+        stopLiveScan();
+        displayBarcodeResults(results);
+      }
+    } catch (error) {
+      console.log(error);
     }
     decoding = false;
   }
