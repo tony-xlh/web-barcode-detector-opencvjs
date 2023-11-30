@@ -112,8 +112,11 @@
   function decodeWithOpenCV(imageSource) {
     let results = [];
     let mat = cv.imread(imageSource);
-    let result = detector.detectAndDecode(mat);
+    let points = new cv.Mat();
+    detector.detect(mat,points);
+    let result = detector.decode(mat,points);
     mat.delete();
+    points.delete();
     if (result) {
       results.push(result);
     }
